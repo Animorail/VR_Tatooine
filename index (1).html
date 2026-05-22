@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="utf-8">
+    <title>Tatooine - Infinite Custom Desert Simulation</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+    <style>
+        #hud {
+            position: fixed; top: 20px; left: 20px; z-index: 100;
+            color: #ffaa00; background: rgba(3, 2, 0, 0.95);
+            padding: 25px; border-left: 6px solid #ffaa00;
+            font-family: 'Courier New', monospace; pointer-events: none;
+            min-width: 350px; box-shadow: 0 0 30px rgba(255, 170, 0, 0.5);
+            border-radius: 4px;
+        }
+        .label { color: #886633; font-size: 0.75em; text-transform: uppercase; display: block; margin-top: 6px; }
+        .val { color: #fff; font-weight: bold; font-size: 1.15em; }
+        .mission { color: #ff3300; font-size: 0.85em; font-weight: bold; margin-top: 15px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body style="margin:0; overflow:hidden;">
+
+    <div id="hud">
+        <div style="font-weight:bold; border-bottom:2px solid #ffaa00; padding-bottom:5px; margin-bottom:12px; letter-spacing: 2px; font-size: 1.2em;">TATOOINE_SYSTEM_OS_v26.0</div>
+        <span class="label">Lokalita systému:</span> <span id="hud-space" class="val">SYSTEM_ORBIT_BLACK_VOID</span>
+        <span class="label">Senzorový režim:</span> <span id="hud-mode" class="val">SPACE_RADAR_ACTIVE</span>
+        <span class="label">Klimatická teplota:</span> <span id="temp" class="val">N/A (VAKUUM)</span>
+        <span class="label">Proudění větru:</span> <span id="wind" class="val">0 km/h</span>
+        <span class="label">Navigační souřadnice:</span> <span id="telemetry" class="val">X: 0.00 | Y: 1.60 | Z: 5.00</span>
+        <div id="hud-task" class="mission">KLIKNI NA PLANETU PRO SPUŠTĚNÍ SESTUPU</div>
+    </div>
+
+    <a-scene id="main-scene" renderer="antialias: true; colorManagement: true; logarithmicDepthBuffer: true;">
+        
+        <a-assets>
+            <a-asset-item id="model-planeta" src="asssety/tatooine.glb"></a-asset-item>
+            <a-asset-item id="model-kosti" src="asssety/tatooine_rib_fbx.glb"></a-asset-item>
+            <a-asset-item id="model-vaporator" src="asssety/star_wars_moisture_vaporator.glb"></a-asset-item>
+            <a-asset-item id="model-dum" src="asssety/tatooine_styled_house_v2.glb"></a-asset-item>
+            <a-asset-item id="model-ronto-old" src="asssety/ronto.glb"></a-asset-item>
+            <a-asset-item id="model-ronto-new" src="asssety/ronto_star_wars.glb"></a-asset-item>
+            <a-asset-item id="model-ship" src="asssety/ship.glb"></a-asset-item>
+        </a-assets>
+
+        <a-entity id="ambient-sound"></a-entity>
+
+        <a-entity id="dynamic-env-holder"></a-entity>
+
+        <a-entity id="space-scene">
+            <a-sky color="#000000"></a-sky>
+            
+            <a-entity id="starfield">
+                <a-sphere position="-30 40 -80" radius="0.18" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="50 -20 -70" radius="0.22" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="20 45 -40" radius="0.28" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="-80 20 -10" radius="0.2" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="80 10 -30" radius="0.15" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="-70 -30 -40" radius="0.25" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="65 35 10" radius="0.18" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="-10 25 60" radius="0.22" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="40 15 70" radius="0.17" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="-50 -20 50" radius="0.24" color="#fff" shader="flat"></a-sphere>
+                <a-sphere position="30 -40 80" radius="0.19" color="#fff" shader="flat"></a-sphere>
+            </a-entity>
+
+            <a-entity id="target-planet" gltf-model="#model-planeta" class="clickable" 
+                      position="0 1 -28" 
+                      scale="2.3 2.3 2.3"
+                      animation="property: rotation; to: 0 360 0; dur: 100000; loop: true; easing: linear">
+            </a-entity>
+
+            <a-box position="0 -6 -6" width="18" height="0.4" depth="12" color="#0d0d11" material="metalness:0.8; roughness:0.2"></a-box>
+        </a-entity>
+
+
+        <a-entity id="surface-scene" visible="false">
+            <a-sphere position="-250 120 -700" radius="35" color="#fffdf0" shader="flat"></a-sphere>
+            <a-sphere position="150 80 -650" radius="18" color="#ff6a00" shader="flat"></a-sphere>
+
+            <a-entity id="term-main" class="clickable" position="0 0 -10">
+                <a-box width="0.6" height="1.8" depth="0.6" color="#111"></a-box>
+                <a-box position="0 0.96 0" width="0.7" height="0.2" depth="0.7" color="#00aaff" 
+                       animation="property: material.opacity; from: 0.5; to: 1; dur: 1000; loop: true; dir: alternate"></a-box>
+                <a-light type="point" color="#00aaff" intensity="0.6" distance="5" position="0 1 0"></a-light>
+            </a-entity>
+
+            <a-plane id="infinite-fallback-floor" position="0 -0.15 0" rotation="-90 0 0" width="15000" height="15000" color="#8a4826" material="roughness: 1; metalness: 0;"></a-plane>
+
+            <a-entity id="player-spaceship" gltf-model="#model-ship" position="0 3 35" rotation="0 180 0" scale="20 20 20"></a-entity>
+
+            <a-sphere id="tw-1" radius="0.22" color="#7c5c43" material="roughness: 1;" position="-30 0.2 -20"></a-sphere>
+            <a-sphere id="tw-2" radius="0.18" color="#634732" material="roughness: 1;" position="25 0.2 -50"></a-sphere>
+            <a-sphere id="tw-3" radius="0.28" color="#7c5c43" material="roughness: 1;" position="-60 0.2 -90"></a-sphere>
+            <a-sphere id="tw-4" radius="0.20" color="#543b28" material="roughness: 1;" position="45 0.2 -120"></a-sphere>
+            <a-sphere id="tw-5" radius="0.25" color="#634732" material="roughness: 1;" position="-15 0.2 -70"></a-sphere>
+            <a-sphere id="tw-6" radius="0.16" color="#7c5c43" material="roughness: 1;" position="55 0.2 -140"></a-sphere>
+
+            <a-entity id="animal-ronto-1" class="clickable" gltf-model="#model-ronto-old" position="15 0 -35" rotation="0 180 0" scale="0.12 0.12 0.12"></a-entity>
+            
+            <a-entity id="animal-ronto-2" gltf-model="#model-ronto-new" position="-80 0 -190" scale="0.06 0.06 0.06"></a-entity>
+
+            <a-entity id="droid-group">
+                <a-entity position="-6 0.2 -12" animation="property: position; to: 10 0.2 -12; dur: 6000; dir: alternate; loop: true; easing: easeInOutQuad">
+                    <a-box width="0.4" height="0.3" depth="0.7" color="#151515"><a-sphere position="0 0.1 0.36" radius="0.03" color="red" shader="flat"></a-sphere></a-box>
+                </a-entity>
+                <a-entity position="8 0.2 -28" animation="property: position; to: -12 0.2 -28; dur: 8500; dir: alternate; loop: true; easing: easeInOutSine">
+                    <a-box width="0.4" height="0.3" depth="0.7" color="#1c1c1c"><a-sphere position="0 0.1 0.36" radius="0.03" color="red" shader="flat"></a-sphere></a-box>
+                </a-entity>
+                <a-entity position="-15 0.2 -45" animation="property: position; to: -15 0.2 -15; dur: 7000; dir: alternate; loop: true; easing: linear">
+                    <a-box width="0.4" height="0.3" depth="0.7" color="#111111"><a-sphere position="0 0.1 0.36" radius="0.03" color="red" shader="flat"></a-sphere></a-box>
+                </a-entity>
+                <a-entity position="22 0.2 -60" animation="property: position; to: 5 0.2 -80; dur: 9000; dir: alternate; loop: true; easing: easeInOutCubic">
+                    <a-box width="0.4" height="0.3" depth="0.7" color="#222222"><a-sphere position="0 0.1 0.36" radius="0.03" color="red" shader="flat"></a-sphere></a-box>
+                </a-entity>
+            </a-entity>
+
+            <a-entity id="flying-creatures">
+                <a-entity position="0 8 -30" animation="property: rotation; to: 0 360 0; dur: 12000; easing: linear; loop: true">
+                    <a-sphere position="10 0 0" radius="0.3" color="#333" material="metalness:0.8; roughness:0.2">
+                        <a-cylinder position="0 -1 0" radius="0.02" height="2" color="#00aaff" material="shader:flat; opacity:0.6"></a-cylinder>
+                    </a-sphere>
+                </a-entity>
+                <a-entity position="-30 12 -60" animation="property: rotation; to: 0 -360 0; dur: 16000; easing: linear; loop: true">
+                    <a-sphere position="15 0 0" radius="0.35" color="#222" material="metalness:0.9">
+                        <a-cylinder position="0 -1 0" radius="0.02" height="2" color="#ff3300" material="shader:flat; opacity:0.5"></a-cylinder>
+                    </a-sphere>
+                </a-entity>
+                <a-entity position="25 10 -90" animation="property: position; to: 25 14 -90; dur: 4000; dir: alternate; loop: true; easing: easeInOutSine">
+                    <a-sphere radius="0.25" color="#444"><a-light type="point" color="#ffaa00" intensity="0.5" distance="4"></a-light></a-sphere>
+                </a-entity>
+            </a-entity>
+
+            <a-entity id="mos-eisley-city">
+                <a-entity gltf-model="#model-dum" position="-22 0 -20" rotation="0 15 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-25 0 -45" rotation="0 -10 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-20 0 -70" rotation="0 5 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-26 0 -95" rotation="0 25 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-21 0 -120" rotation="0 -15 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-28 0 -145" rotation="0 40 0" scale="1 1 1"></a-entity>
+                
+                <a-entity gltf-model="#model-dum" position="22 0 -25" rotation="0 -20 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="20 0 -50" rotation="0 5 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="26 0 -75" rotation="0 -15 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="21 0 -100" rotation="0 30 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="27 0 -125" rotation="0 -10 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="19 0 -150" rotation="0 15 0" scale="1 1 1"></a-entity>
+
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="0 0 -55" rotation="0 0 0" scale="3 3 3"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="-65 0 -85" rotation="0 90 0" scale="3 3 3"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="70 0 -105" rotation="0 -90 0" scale="3.5 3.5 3.5"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="-80 0 -190" rotation="0 45 0" scale="3 3 3"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="75 0 -220" rotation="0 -45 0" scale="3 3 3"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="0 0 -270" rotation="0 180 0" scale="4 4 4"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="-115 0 -130" rotation="0 30 0" scale="3.5 3.5 3.5"></a-entity>
+                <a-entity gltf-model="src: asssety/batiment_style_moss_eisley.glb" position="115 0 -140" rotation="0 -30 0" scale="3.5 3.5 3.5"></a-entity>
+
+                <a-entity gltf-model="#model-dum" position="50 0 -40" rotation="0 90 0" scale="0.9 0.9 0.9"></a-entity>
+                <a-entity gltf-model="#model-dum" position="55 0 -65" rotation="0 110 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-52 0 -35" rotation="0 -90 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="-140 0 -200" rotation="0 15 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-dum" position="140 0 -210" rotation="0 -15 0" scale="1 1 1"></a-entity>
+            </a-entity>
+
+            <a-entity id="vaporators-container">
+                <a-entity gltf-model="#model-vaporator" position="-14 0 -15" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-vaporator" position="15 0 -22" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-vaporator" position="-16 0 -38" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-vaporator" position="13 0 -55" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-vaporator" position="-12 0 -78" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-vaporator" position="17 0 -92" scale="1 1 1"></a-entity>
+            </a-entity>
+
+            <a-entity id="krayt-graveyard">
+                <a-entity gltf-model="#model-kosti" position="-55 0 -100" rotation="0 45 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-kosti" position="65 0 -130" rotation="0 -30 0" scale="1 1 1"></a-entity>
+                <a-entity gltf-model="#model-kosti" position="-70 0 -160" rotation="0 15 0" scale="1 1 1"></a-entity>
+            </a-entity>
+        </a-entity>
+
+        <a-entity id="rig" position="0 1.6 5" movement-controls="controls: keyboard; fly: true; speed: 0.4">
+            <a-entity camera look-controls id="cam">
+                <a-cursor color="#00aaff" fuse="false" radius-inner="0.02" radius-outer="0.03"></a-cursor>
+            </a-entity>
+        </a-entity>
+
+        <a-light type="ambient" id="global-light" intensity="0.7" color="#ffffff"></a-light>
+        <a-light type="directional" id="sun-light" position="5 20 5" intensity="0.5" visible="false"></a-light>
+
+    </a-scene>
+
+    <script>
+        let coreTemp = 42; 
+        let coreWind = 14;
+        let rontoWalkingActive = false; 
+        const rigElement = document.getElementById('rig');
+
+        // Pohyb kuliček pouští
+        function updateTumbleweedLogic(time, timeDelta) {
+            if (document.getElementById('surface-scene').getAttribute('visible') === 'false') return;
+
+            const windVelocity = 7.5; 
+            for (let i = 1; i <= 6; i++) {
+                let tw = document.getElementById(`tw-${i}`);
+                if (!tw) continue;
+
+                tw.object3D.position.z += windVelocity * (timeDelta / 1000);
+                tw.object3D.position.y = Math.abs(Math.sin((time + i * 350) / 180)) * 0.3 + 0.15;
+                tw.object3D.rotation.x += 0.09;
+                tw.object3D.rotation.y += 0.03;
+
+                if (tw.object3D.position.z > 160) {
+                    tw.object3D.position.z = -320;
+                    tw.object3D.position.x = (Math.random() * 260 - 130);
+                }
+            }
+        }
+
+        // Plynulá AI navigace a chůze Rontů mezi budovami napořád
+        let targetRonto1 = new THREE.Vector3(15, 0, -80);
+        let targetRonto2 = new THREE.Vector3(-80, 0, -190);
+
+        function updateRontoLogic(time, timeDelta) {
+            if (document.getElementById('surface-scene').getAttribute('visible') === 'false') return;
+
+            const speed = 1.6;
+            
+            // Kód pro Hlavního interaktivního Ronta 1 (Po kliknutí chodí stabilně a napořád)
+            const r1 = document.getElementById('animal-ronto-1');
+            if (r1 && rontoWalkingActive) {
+                let p1 = r1.object3D.position;
+                if (p1.distanceTo(targetRonto1) < 5) {
+                    // Generování nové náhodné souřadnice uvnitř města
+                    targetRonto1.set((Math.random() * 100 - 50), 0, -(Math.random() * 120 + 20));
+                    r1.object3D.lookAt(targetRonto1);
+                    // Korekce osy, aby model nechodil bokem/přetáčeně
+                    r1.object3D.rotateY(Math.PI);
+                } else {
+                    // Pohyb vpřed po opravené ose
+                    r1.object3D.translateZ(-speed * (timeDelta / 1000));
+                }
+            }
+
+            // Kód pro vzdáleného dekorativního Ronta 2
+            const r2 = document.getElementById('animal-ronto-2');
+            if (r2) {
+                let p2 = r2.object3D.position;
+                if (p2.distanceTo(targetRonto2) < 5) {
+                    targetRonto2.set((Math.random() - 0.5) * 350, 0, -Math.random() * 250 - 100);
+                    r2.object3D.lookAt(targetRonto2);
+                    r2.object3D.rotateY(Math.PI);
+                } else {
+                    r2.object3D.translateZ(-1.2 * (timeDelta / 1000));
+                }
+            }
+        }
+
+        // INTERAKTIVNÍ KLIKNUTÍ: Aktivuje zvuk z paměti a spustí trvalou chůzi
+        document.getElementById('animal-ronto-1').addEventListener('click', () => {
+            let audio = new Audio('asssety/ronto_sound.mp3');
+            audio.volume = 1.0;
+            audio.play().catch(err => console.log("Prohlížeč zachytil audio."));
+
+            // Spuštění trvalé AI chůze vpřed
+            rontoWalkingActive = true;
+        });
+
+        // Propojení tick loopu scény
+        const sceneEl = document.querySelector('a-scene');
+        sceneEl.addEventListener('render-target-loaded', () => {
+            sceneEl.addEventListener('tick', (e) => {
+                const time = e.detail.time;
+                const timeDelta = e.detail.timeDelta;
+                updateTumbleweedLogic(time, timeDelta);
+                updateRontoLogic(time, timeDelta);
+            });
+        });
+
+        // Počasí API
+        fetch('https://api.open-meteo.com/v1/forecast?latitude=49.84&longitude=18.29&current=temperature_2m,windspeed_10m&timezone=auto')
+            .then(res => res.json())
+            .then(api => {
+                coreTemp = Math.floor(api.current.temperature_2m + 29);
+                coreWind = Math.floor(api.current.windspeed_10m);
+            }).catch(e => console.log("Meteo offline."));
+
+        // HUD live telemetry
+        const telemetryDisplay = document.getElementById('telemetry');
+        setInterval(() => {
+            let pos = rigElement.getAttribute('position');
+            telemetryDisplay.innerText = `X: ${pos.x.toFixed(2)} | Y: ${pos.y.toFixed(2)} | Z: ${pos.z.toFixed(2)}`;
+        }, 150);
+
+        // SESTUP Z ORBITY NA POVRCH
+        document.querySelector('#target-planet').addEventListener('click', () => {
+            document.getElementById('space-scene').setAttribute('visible', 'false');
+            document.getElementById('main-scene').setAttribute('fog', 'type: exponential; color: #8a4826; density: 0.003');
+            
+            const envHolder = document.getElementById('dynamic-env-holder');
+            envHolder.innerHTML = `
+                <a-entity id="surface-env" environment="
+                    preset: egypt; ground: flat; groundTexture: walkernoise;
+                    stageSize: 1000; groundColor: #8a4826; groundColor2: #5a2e18;
+                    skyType: gradient; skyColor: #ff7b00; horizonColor: #ffcc66;
+                    fog: 0.45; dressing: none;">
+                </a-entity>
+            `;
+            
+            document.getElementById('surface-scene').setAttribute('visible', 'true');
+            document.getElementById('global-light').setAttribute('color', '#332211');
+            document.getElementById('sun-light').setAttribute('visible', 'true');
+
+            // Hráč přistane před svou obří lodí
+            rigElement.setAttribute('position', '0 1.6 12');
+            rigElement.setAttribute('movement-controls', 'controls: keyboard; fly: false; speed: 0.35');
+
+            // Cantina ambient hudba
+            const soundEntity = document.getElementById('ambient-sound');
+            let played = false;
+            try {
+                soundEntity.setAttribute('sound', 'src: url(asssety/cantina.mp3); loop: true; volume: 0.7; positional: false;');
+                soundEntity.components.sound.playSound();
+                played = true;
+            } catch(e) {}
+            if (!played) {
+                try {
+                    soundEntity.setAttribute('sound', 'src: url(asssety/cantina); loop: true; volume: 0.7; positional: false;');
+                    soundEntity.components.sound.playSound();
+                } catch(err) {
+                    console.log("Audio stopa Cantina chybí.");
+                }
+            }
+
+            // Aktualizace čistých informací na panelu po přistání
+            document.getElementById('hud-space').innerText = "PLANETA_TATOOINE_SEKTOR_ARKA";
+            document.getElementById('hud-mode').innerText = "STANDARD_SURFACE_SPECTRUM";
+            document.getElementById('temp').innerText = coreTemp + " °C";
+            document.getElementById('wind').innerText = coreWind + " km/h";
+            document.getElementById('hud-task').innerText = "SESTUP DOKONČEN. KLIKNI NA RONTA PRO AKTIVACI CHŮZE.";
+            document.getElementById('hud-task').style.color = "#00ff00";
+        });
+
+        // FILTRY OS
+        let filterCounter = 0;
+        const gLight = document.getElementById('global-light');
+        const modeHUD = document.getElementById('hud-mode');
+        const tempHUD = document.getElementById('temp');
+
+        document.getElementById('term-main').addEventListener('click', () => {
+            if (document.getElementById('surface-scene').getAttribute('visible') === 'false') return;
+            
+            const sEnv = document.getElementById('surface-env');
+            const mainScene = document.getElementById('main-scene');
+            filterCounter++;
+            let mode = filterCounter % 3;
+
+            if (mode === 1) {
+                modeHUD.innerText = "INFRA_NIGHT_VISION [GREEN]";
+                tempHUD.innerText = (coreTemp - 14) + " °C";
+                gLight.setAttribute('color', '#004a00');
+                mainScene.setAttribute('fog', 'color: #001a00');
+                document.getElementById('infinite-fallback-floor').setAttribute('color', '#002200');
+                sEnv.setAttribute('environment', 'skyColor', '#001a00');
+                sEnv.setAttribute('environment', 'horizonColor', '#000800');
+            } else if (mode === 2) {
+                modeHUD.innerText = "THERMAL_SCANNER [HIGH_HEAT]";
+                tempHUD.innerText = (coreTemp + 42) + " °C";
+                gLight.setAttribute('color', '#440000');
+                mainScene.setAttribute('fog', 'color: #200000; density: 0.01');
+                document.getElementById('infinite-fallback-floor').setAttribute('color', '#330000');
+                sEnv.setAttribute('environment', 'skyColor', '#200000');
+                sEnv.setAttribute('environment', 'horizonColor', '#ff0000');
+                sEnv.setAttribute('environment', 'fog', 0.85);
+            } else {
+                modeHUD.innerText = "STANDARD_SURFACE_SPECTRUM";
+                tempHUD.innerText = coreTemp + " °C";
+                gLight.setAttribute('color', '#332211');
+                mainScene.setAttribute('fog', 'color: #8a4826; density: 0.003');
+                document.getElementById('infinite-fallback-floor').setAttribute('color', '#8a4826');
+                sEnv.setAttribute('environment', 'skyColor', '#ff7b00');
+                sEnv.setAttribute('environment', 'horizonColor', '#ffcc66');
+                sEnv.setAttribute('environment', 'fog', 0.45);
+            }
+        });
+    </script>
+</body>
+</html>
